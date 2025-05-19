@@ -64,7 +64,40 @@ class MCP_CLIENT:
             The conversation history is as follows:
             {response_history}
             """)
+            return final_response
+        else:
+            response=self.agent.generate_response(input)
+            response_history.append({"role": "assistant", "content": response})
+            return response 
 
         
 
             
+    async def chat_loop(self):
+        """Main chat loop for interacting with the MCP server"""
+        print("Chat session started. Type 'exit' to quit.")
+        
+        while True:
+            try:
+                # Get user input
+                user_input = input("\nYou: ").strip()
+                
+                # Check for exit command
+                if user_input.lower() == 'exit':
+                    print("Ending chat session...")
+                    break
+                
+                # Skip empty inputs
+                if not user_input:
+                    continue
+                
+                # Process the input and get response
+                response = await self.get_response(user_input)
+                
+                # Print the response
+                if response:
+                    print("\nAssistant:", response)
+                    
+            except Exception as e:
+                print(f"\nError occurred: {str(e)}")
+                continue
