@@ -3,9 +3,9 @@ import re
 import json
       
 class Agent:
-    def __init__(self, model,tools,key):
+    def __init__(self,key, model="gemini-2.0-flash-lite"):
         self.model = model
-        self.tools=tools
+        self.tools=None
         self.history = []
         self.key=key
 

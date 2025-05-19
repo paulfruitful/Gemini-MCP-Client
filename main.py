@@ -11,7 +11,7 @@ class MCP_CLIENT:
         
         self.session: Optional[ClientSession] = None
         self.exit= AsyncExitStack()
-        self.agent=Agent("",None,"")
+        self.agent=Agent(None)
 
     async def connect_mcp_server(self):
         is_python = server_script_path.endswith('.py')
