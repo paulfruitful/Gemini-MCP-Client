@@ -4,14 +4,18 @@ from typing import Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from agent import Agent
+import os 
+
 load_dotenv()
+
+api_key=os.environ.get("GEMINI_KEY")
 
 class MCP_CLIENT:
     def __init__(self) -> None:
         
         self.session: Optional[ClientSession] = None
         self.exit= AsyncExitStack()
-        self.agent=Agent(None)
+        self.agent=Agent(api_key)
 
     async def connect_mcp_server(self):
         is_python = server_script_path.endswith('.py')
@@ -101,3 +105,19 @@ class MCP_CLIENT:
             except Exception as e:
                 print(f"\nError occurred: {str(e)}")
                 continue
+
+    async def close(self):
+        await self.exit.aclose()
+
+
+async def main():
+    mcp_client = MCP_CLIENT()
+    server_path=input("Enter the path to the server script: ")
+    try:
+     await mcp_client.connect_mcp_server(server_path)
+     await mcp_client.chat_loop()
+    finally:   
+      await mcp_client.close()
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main()) 
