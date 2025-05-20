@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack
 from typing import Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from agent import Agent
+from gemini_tool_agent.agent import Agent
 import os 
 
 load_dotenv()
@@ -70,24 +70,16 @@ class MCP_CLIENT:
                     result=await self.session.call_tool(tool,call_tool["input"]) 
                     
                     self.agent.history.append({"role": "tool_call_result", "content": result})
-                if  isinstance(response, dict) and response.get("direct_response", False):
-                    self.agent.history.append({"role": "assistant", "content": response["direct_response"]})
-
-                    final_response=self.agent.generate_response(f"""
-                    You are a final response generator.
-                    You are giving a conversation history between a chatbot and a user and inside this conversation history lies processes like tool calls and results of tool calls.
-                    You are to use the result of the tool call to generate a final response for the user.
-                    You are to only generate the final response for the user.
-                    You are to not generate any other text.
-                    You are to not generate any tool calls.
-                    The conversation history is as follows:
-                    {self.agent.history}
-                    """)
-                    return final_response
+         
+            if isinstance(response, dict) and response.get("needs_direct_response", False):
+                self.agent.history.append({"role": "direct_response", "content": response["direct_response"]})
+      
+                return response["direct_response"]
             else:
                 response_text = self.agent.generate_response(input)
                 self.agent.history.append({"role": "assistant", "content": response_text})
                 return response_text
+                
         except Exception as e:
             return f"An error occurred while processing your request: {str(e)}"
         

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "dotenv>=0.9.9",
+    "gemini-tool-agent>=0.1.1",
     "google-genai>=1.15.0",
     "mcp>=1.9.0",
     "python-dotenv>=1.1.0",
