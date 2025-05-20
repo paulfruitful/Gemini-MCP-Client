@@ -76,7 +76,15 @@ class MCP_CLIENT:
       
                 return response["direct_response"]
             else:
-                response_text = self.agent.generate_response(input)
+                conversation_context = self.agent.history[-5:] if len(self.agent.history) >= 5 else self.agent.history
+                response_text = self.agent.generate_response(f"""
+                You are a helpful assistant responding to the following query:
+                QUERY: {input}
+                
+                CONVERSATION HISTORY: {conversation_context}
+                
+                Please provide a comprehensive and accurate response that considers the conversation history.
+                """)
                 self.agent.history.append({"role": "assistant", "content": response_text})
                 return response_text
                 
