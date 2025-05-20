@@ -7,40 +7,74 @@ class Agent:
         self.model = model
         self.tools=None
         self.history = []
-        self.key=key
+        self.ai=genai.Client(api_key=key)
 
 
     def find_tool(self, tool_name):
         for tool in self.tools:
-            if tool.name == tool_name:
+            if tool["name"] == tool_name:
                 return tool
         return None
         
 
     def process_query(self, query):
+        
+        tools_str = ', '.join([f"{tool['name']}: {tool['description']}" for tool in self.tools])
+        
+        conversation_context = self.history[-10:] if len(self.history) >= 10 else self.history
+        
         prompt = f"""
         QUERY: {query}
         
-        AVAILABLE TOOLS: {', '.join( [{
-        "name": tool.name,
-        "description": tool.description
-    } for tool in response.tools])}
+        AVAILABLE TOOLS: {tools_str}
+        
+        CONVERSATION HISTORY: {conversation_context}
         
         INSTRUCTIONS:
-        1. Analyze if the query requires using any of the available tools.
-        2. Respond in the following JSON format:
-           {{"needs_tool": true/false, "tool_name": "tool_name_if_needed", "reasoning": "brief explanation"}}
-        3. If no tool is needed, set "needs_tool" to false and leave "tool_name" empty.
+        1. Analyze if the query requires using any of the available tools, requires a direct response, or both.
+        2. Consider the conversation history to understand the context of the current query.
+        3. For hybrid requests (like "narrate X and save it"), identify both the information request and the tool action.
+        4. For follow-up queries, determine if they relate to previous tool usage or direct responses.
+        5. Respond in the following JSON format:
+           {{
+             "needs_tool": true/false,
+             "tool_name": "tool_name_if_needed",
+             "needs_direct_response": true/false,
+             "direct_response_first": true/false,
+             "reasoning": "brief explanation of your decision that considers conversation history"
+           }}
+        6. If no tool is needed, set "needs_tool" to false and leave "tool_name" empty.
+        7. If a direct response is needed, set "needs_direct_response" to true.
+        8. For hybrid requests, set both flags to true and use "direct_response_first" to indicate order.
         
         Your structured response:
         """
         
-        response = self.generate_response(prompt)
-        self.history.append({"role": "user", "content": prompt})
-        self.history.append({"role": "assistant", "content": response})
-        parsedResponse = self.extract_json(response)
+        response_text = self.generate_response(prompt)
+        parsed_response = self.extract_json(response_text)
         
-        return parsedResponse
+        # If a direct response is needed, generate it and add to the response dict
+        if parsed_response.get("needs_direct_response", False):
+            # Include conversation history in the direct response prompt
+            direct_prompt = f"""
+            You are a helpful assistant responding to the following query:
+            
+            QUERY: {query}
+            
+            CONVERSATION HISTORY: {conversation_context}
+            
+            Please provide a comprehensive and accurate response that considers the conversation history.
+            If the query mentions saving information or using tools, focus on providing the information itself,
+            as the tool actions will be handled separately.
+            """
+            
+            direct_response = self.generate_response(direct_prompt)
+            
+            parsed_response["direct_response"] = direct_response
+            
+            self.history.append({"role": "assistant", "content": direct_response})
+        
+        return parsed_response
         
     def extract_json(self, text):
         """Extract JSON content from text using regex."""
@@ -60,23 +94,21 @@ class Agent:
             return {"error": str(e), "raw_text": text}
 
     def process_use_tool(self, tool_name):
-        tool = self.find_tool(tool_name)
-        if tool:
-            prompt = f"""
-            # Tool Calling Task
-            
-            ## Context
-            You are analyzing a conversation to extract parameters for a tool call.
-            
-            ## Tool Information
-            - Name: {tool.name}
-            - Description: {tool.description}
-            - Input Schema: {tool.input_schema}
-            
-            ## Previous Conversation
-            User query: {self.history[-2]['content']}
-            Assistant response: {self.history[-1]['content']}
-            
+     tool = self.find_tool(tool_name)
+     if tool:
+        prompt = f"""
+        # Tool Calling Task
+        
+        ## Context
+        You are analyzing a conversation to extract parameters for a tool call.
+        
+        ## Tool Information
+        - Name: {tool["name"]}
+        - Description: {tool["description"]}
+        - Input Schema: {tool["input_schema"]}
+        
+        ## Previous Conversation: {self.history[-7:] if len(self.history) >= 7 else self.history}
+
             ## Instructions
             1. Carefully analyze the conversation above
             2. Extract all necessary parameters required by the tool's input schema
@@ -87,7 +119,7 @@ class Agent:
             ## Response Format
             Respond ONLY with a valid JSON object in this exact format:
             {{
-                "tool_name": "{tool.name}",
+                "tool_name": "{tool["name"]}",
                 "input": {{
                     "parameter1": "value1",
                     "parameter2": "value2",
@@ -96,18 +128,18 @@ class Agent:
             }}
             """
             
-            response = self.generate_response(prompt)
-            parsed_response = self.extract_json(response)
+        response = self.generate_response(prompt)
+        parsed_response = self.extract_json(response)
+        print("Tool Call",parsed_response)
             
-            return parsed_response
-        else:
+        return parsed_response
+     else:
             return {"error": f"Tool '{tool_name}' not found"}
 
     def generate_response(self, prompt):
-        response = genai.generate_text(
+        response = self.ai.models.generate_content(
             model=self.model,
-            prompt=prompt,
-            temperature=0.7,
-            max_output_tokens=100,
+            contents=prompt,
         )
+       # print("From agent: ",response.text)
         return response.text
