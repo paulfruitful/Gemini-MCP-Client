@@ -49,7 +49,7 @@ class MCP_CLIENT:
     async def get_response(self,input:str):
         try:
             response=self.agent.process_query(input)
-            print(response)
+            
             self.agent.history.append({"role": "user", "content": input})
             
             
